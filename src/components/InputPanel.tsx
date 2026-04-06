@@ -90,7 +90,12 @@ export default function InputPanel({ onResult, onLoading, onError }: InputPanelP
         url: url.trim(),
         budgetUSD: parsedBudget > 0 ? parsedBudget : 0,
       });
-      if (res.data) onResult(res.data);
+      if (res.data) {
+        if (res.data.breakdown.isEstimatedBid) {
+          setLinkBudget(String(res.data.breakdown.bidAmountUSD));
+        }
+        onResult(res.data);
+      }
     } catch (err) {
       onError(err instanceof Error ? err.message : t.errGeneric);
     } finally {
