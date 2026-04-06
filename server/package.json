@@ -1,0 +1,22 @@
+{
+  "name": "zustifasi-server",
+  "version": "1.0.0",
+  "description": "ZustiFasi.ge - US car import cost calculator API",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.14.0",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
+    "nodemon": "^3.1.14"
+  }
+}
