@@ -9,7 +9,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "node server/app.js",
-    "server:dev": "cd server && npx nodemon app.js"
+    "server:dev": "cd server && npx nodemon app.js",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": "eslint --fix",
+    "*.{json,css,md}": []
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -30,6 +35,8 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "tsx": "^4.21.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.0",
