@@ -32,6 +32,7 @@ export function I18nProvider({ children }: { children: ReactNode }): ReactNode {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useI18n(): I18nContextValue {
   return useContext(I18nContext);
 }
