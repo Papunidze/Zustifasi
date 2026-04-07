@@ -44,6 +44,20 @@ export default function InputPanel({ onResult, onLoading, onError }: InputPanelP
   const isCustoms = mode === "customs";
   const availableModels = getModels(selectedMake);
 
+  const engineVol = Number(engineVolume);
+  const isEngineValid = fuelType === "EV" || (engineVol > 0 && engineVol <= 10);
+  const trimmedUrl = url.trim();
+  const isLinkValid =
+    /^https?:\/\/.+/i.test(trimmedUrl) ||
+    /^[A-HJ-NPR-Z0-9]{17}$/i.test(trimmedUrl);
+  const isManualValid =
+    Boolean(selectedMake) &&
+    Boolean(selectedModel) &&
+    Boolean(selectedYear) &&
+    isEngineValid;
+  const isCustomsValid = Boolean(selectedYear) && isEngineValid;
+  const isVinValid = /^[A-HJ-NPR-Z0-9]{17}$/i.test(vinInput.trim());
+
   const fuelOptions = [t.fuelGas, t.fuelHybrid, t.fuelEV];
   const fuelToType: Record<string, FuelType> = {
     [t.fuelGas]: "Gas",
@@ -80,7 +94,7 @@ export default function InputPanel({ onResult, onLoading, onError }: InputPanelP
   }
 
   async function handleLinkSubmit(): Promise<void> {
-    if (!url.trim()) {
+    if (!isLinkValid) {
       onError(t.errNoUrl);
       return;
     }
@@ -243,7 +257,11 @@ export default function InputPanel({ onResult, onLoading, onError }: InputPanelP
               />
             </div>
           </div>
-          <button className="input-panel__submit" onClick={handleCustomsSubmit}>
+          <button
+            className="input-panel__submit"
+            onClick={handleCustomsSubmit}
+            disabled={!isCustomsValid}
+          >
             {t.calculate}
           </button>
         </div>
@@ -267,7 +285,7 @@ export default function InputPanel({ onResult, onLoading, onError }: InputPanelP
                 type="button"
                 className="input-panel__submit"
                 onClick={handleVinDecode}
-                disabled={vinLoading}
+                disabled={vinLoading || !isVinValid}
               >
                 {vinLoading ? "..." : "Decode VIN"}
               </button>
@@ -328,7 +346,11 @@ export default function InputPanel({ onResult, onLoading, onError }: InputPanelP
             </div>
           </div>
 
-          <button className="input-panel__submit" onClick={handleManualSubmit}>
+          <button
+            className="input-panel__submit"
+            onClick={handleManualSubmit}
+            disabled={!isManualValid}
+          >
             {t.calculate}
           </button>
         </div>
@@ -357,7 +379,11 @@ export default function InputPanel({ onResult, onLoading, onError }: InputPanelP
             </div>
           </div>
 
-          <button className="input-panel__submit" onClick={handleLinkSubmit}>
+          <button
+            className="input-panel__submit"
+            onClick={handleLinkSubmit}
+            disabled={!isLinkValid}
+          >
             {t.calculate}
           </button>
         </div>

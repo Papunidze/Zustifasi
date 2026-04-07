@@ -309,6 +309,21 @@
   transform: translateY(0);
 }
 
+.input-panel__submit:disabled {
+  background: var(--c-bg-soft);
+  color: var(--c-text-dim);
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.input-panel__submit:disabled:hover {
+  background: var(--c-bg-soft);
+  color: var(--c-text-dim);
+  transform: none;
+  box-shadow: none;
+}
+
 /* ═══════════════════════════════════════
    SEARCH SELECT
    ═══════════════════════════════════════ */
@@ -592,6 +607,8 @@
 }
 
 .results-area__center-col--empty {
+  display: flex;
+  flex-direction: column;
   grid-column: 1 / -1;
   align-items: center;
   justify-content: center;
