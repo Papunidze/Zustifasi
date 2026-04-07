@@ -1,7 +1,8 @@
 import type { ApiResponse, LinkPayload, ManualPayload, CustomsPayload, VinDecoded, VinResponse } from "./types";
 
-const BASE = "/api/v1/calculate";
-const VIN_BASE = "/api/v1/vin";
+const API_ROOT = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+const BASE = `${API_ROOT}/api/v1/calculate`;
+const VIN_BASE = `${API_ROOT}/api/v1/vin`;
 
 async function post(endpoint: string, body: unknown): Promise<ApiResponse> {
   const res = await fetch(`${BASE}${endpoint}`, {

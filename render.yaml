@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: zustifasi-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGINS
+        value: https://zustifasi.ge,https://www.zustifasi.ge

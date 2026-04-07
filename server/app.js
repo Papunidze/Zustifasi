@@ -8,8 +8,24 @@ const vinRoutes = require("./routes/vin.routes");
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.length === 0) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error("Not allowed by CORS"));
+    },
+  })
+);
 app.use(express.json());
+
+app.set("trust proxy", 1);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
@@ -25,8 +41,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, error: "Internal server error." });
 });
 
-app.listen(PORT, () => {
-  console.log(`ZustiFasi.ge API running → http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`ZustiFasi.ge API running on port ${PORT}`);
 });
 
 module.exports = app;
