@@ -15,16 +15,21 @@ function AppContent(): ReactNode {
     <div className="app">
       <div className="app__container">
         <Header />
-        <InputPanel
-          onResult={setResult}
-          onLoading={setIsLoading}
-          onError={setError}
-        />
-        <ResultsPanel
-          result={result}
-          isLoading={isLoading}
-          error={error}
-        />
+        <main id="main" aria-label="Car import cost calculator">
+          <h1 className="visually-hidden">
+            ZustiFasi.ge — Car import cost calculator for Georgia
+          </h1>
+          <InputPanel
+            onResult={setResult}
+            onLoading={setIsLoading}
+            onError={setError}
+          />
+          <ResultsPanel
+            result={result}
+            isLoading={isLoading}
+            error={error}
+          />
+        </main>
       </div>
     </div>
   );
