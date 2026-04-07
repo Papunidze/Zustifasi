@@ -4,6 +4,7 @@ const {
   CUSTOMS_OLD_COEFFICIENT,
   CUSTOMS_DECLARATION_FEE_GEL,
   HYBRID_DISCOUNT,
+  GE_REGISTRATION_FEE_GEL,
 } = require("../utils/constants");
 
 /**
@@ -21,19 +22,32 @@ const {
  * A fixed 150 GEL declaration fee is always added at the end.
  */
 function calculateCustomsFee(engineVolumeLiters, vehicleYear, type) {
-  const engineVolumeCm3 = engineVolumeLiters * 1000;
+  const engineVolumeCm3 = Math.ceil(engineVolumeLiters * 1000);
   const age = CURRENT_YEAR - vehicleYear;
 
   const ageCoefficient = getAgeCoefficient(age);
-  let baseFee = engineVolumeCm3 * ageCoefficient;
+  let exciseGEL = engineVolumeCm3 * ageCoefficient;
 
   if (type === "EV") {
-    baseFee = 0;
+    exciseGEL = 0;
   } else if (type === "Hybrid") {
-    baseFee = baseFee * HYBRID_DISCOUNT;
+    exciseGEL = exciseGEL * HYBRID_DISCOUNT;
   }
 
-  return Math.round((baseFee + CUSTOMS_DECLARATION_FEE_GEL) * 100) / 100;
+  const exciseRounded = Math.round(exciseGEL * 100) / 100;
+  const declarationGEL = CUSTOMS_DECLARATION_FEE_GEL;
+  const registrationGEL = GE_REGISTRATION_FEE_GEL;
+  const totalGEL =
+    Math.round((exciseRounded + declarationGEL + registrationGEL) * 100) / 100;
+
+  return {
+    exciseGEL: exciseRounded,
+    declarationGEL,
+    registrationGEL,
+    ageCoefficient,
+    engineVolumeCm3,
+    totalGEL,
+  };
 }
 
 function getAgeCoefficient(age) {

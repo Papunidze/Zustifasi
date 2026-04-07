@@ -1,17 +1,26 @@
-const { SHIPPING_RATES, SHIPPING_DEFAULT } = require("../utils/constants");
+const {
+  SHIPPING_RATES,
+  SHIPPING_DEFAULT,
+  GEORGIA_INLAND_USD,
+  INSURANCE_RATE,
+} = require("../utils/constants");
 
 /**
- * Returns inland (US domestic) and ocean (US → Poti, Georgia) shipping costs
- * based on the vehicle's US state location.
- *
- * Falls back to default rates for unrecognized states.
+ * Returns the full shipping breakdown:
+ *   inlandUSD       — US auction yard → US export port
+ *   oceanUSD        — US port → Poti, Georgia
+ *   geInlandUSD     — Poti → Tbilisi (Georgian inland leg)
+ *   insuranceUSD    — 2% of bid value (cargo insurance)
  */
-function calculateShipping(usState) {
+function calculateShipping(usState, bidUSD = 0) {
   const rates = SHIPPING_RATES[usState] || SHIPPING_DEFAULT;
+  const insuranceUSD = Math.round(bidUSD * INSURANCE_RATE * 100) / 100;
 
   return {
     inlandUSD: rates.inland,
     oceanUSD: rates.ocean,
+    geInlandUSD: GEORGIA_INLAND_USD,
+    insuranceUSD,
   };
 }
 

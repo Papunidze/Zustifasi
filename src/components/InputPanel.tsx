@@ -1,11 +1,11 @@
 import { useState, type ReactNode } from "react";
-import { calculateByLink, calculateManual } from "../api";
+import { calculateByLink, calculateManual, calculateCustoms, decodeVin } from "../api";
 import { MAKES, getModels, getEngineVolume, detectFuelType } from "../data/cars";
 import { useI18n } from "../i18n/context";
 import SearchSelect from "./SearchSelect";
 import type { CalculationResult } from "../types";
 
-type InputMode = "link" | "manual";
+type InputMode = "link" | "manual" | "customs";
 type FuelType = "Gas" | "Hybrid" | "EV";
 
 interface InputPanelProps {
@@ -37,8 +37,11 @@ export default function InputPanel({ onResult, onLoading, onError }: InputPanelP
   const [fuelType, setFuelType] = useState<FuelType>("Gas");
   const [engineVolume, setEngineVolume] = useState("");
   const [budget, setBudget] = useState("");
+  const [vinInput, setVinInput] = useState("");
+  const [vinLoading, setVinLoading] = useState(false);
 
   const isManual = mode === "manual";
+  const isCustoms = mode === "customs";
   const availableModels = getModels(selectedMake);
 
   const fuelOptions = [t.fuelGas, t.fuelHybrid, t.fuelEV];
@@ -103,6 +106,54 @@ export default function InputPanel({ onResult, onLoading, onError }: InputPanelP
     }
   }
 
+  async function handleVinDecode(): Promise<void> {
+    const vin = vinInput.trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
+      onError("VIN must be 17 alphanumeric characters (no I/O/Q).");
+      return;
+    }
+    onError(null);
+    setVinLoading(true);
+    try {
+      const decoded = await decodeVin(vin);
+      setSelectedMake(decoded.make);
+      setSelectedModel(decoded.model);
+      setSelectedYear(String(decoded.year));
+      setFuelType(decoded.type);
+      setEngineVolume(String(decoded.engineVolume));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : t.errGeneric);
+    } finally {
+      setVinLoading(false);
+    }
+  }
+
+  async function handleCustomsSubmit(): Promise<void> {
+    if (!selectedYear) {
+      onError(t.errNoYear);
+      return;
+    }
+    const vol = Number(engineVolume);
+    if (fuelType !== "EV" && (!vol || vol <= 0)) {
+      onError(t.errNoEngine);
+      return;
+    }
+    onError(null);
+    onLoading(true);
+    try {
+      const res = await calculateCustoms({
+        year: Number(selectedYear),
+        engineVolume: fuelType === "EV" ? 0 : vol,
+        type: fuelType,
+      });
+      if (res.data) onResult(res.data);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : t.errGeneric);
+    } finally {
+      onLoading(false);
+    }
+  }
+
   async function handleManualSubmit(): Promise<void> {
     if (!selectedMake || !selectedModel) {
       onError(t.errNoMakeModel);
@@ -143,21 +194,85 @@ export default function InputPanel({ onResult, onLoading, onError }: InputPanelP
       {/* Mode Toggle */}
       <div className="input-panel__tabs">
         <button
-          className={`input-panel__tab ${!isManual ? "input-panel__tab--active" : ""}`}
+          className={`input-panel__tab ${mode === "link" ? "input-panel__tab--active" : ""}`}
           onClick={() => setMode("link")}
         >
           {t.tabLink}
         </button>
         <button
-          className={`input-panel__tab ${isManual ? "input-panel__tab--active" : ""}`}
+          className={`input-panel__tab ${mode === "manual" ? "input-panel__tab--active" : ""}`}
           onClick={() => setMode("manual")}
         >
           {t.tabFilters}
         </button>
+        <button
+          className={`input-panel__tab ${mode === "customs" ? "input-panel__tab--active" : ""}`}
+          onClick={() => setMode("customs")}
+        >
+          {t.tabCustoms}
+        </button>
       </div>
 
-      {isManual ? (
+      {isCustoms ? (
         <div className="input-panel__form">
+          <div className="filter-grid">
+            <SearchSelect
+              label={t.yearLabel}
+              placeholder={t.yearPlaceholder}
+              options={YEARS}
+              value={selectedYear}
+              onChange={setSelectedYear}
+            />
+            <SearchSelect
+              label={t.fuelLabel}
+              placeholder={t.fuelPlaceholder}
+              options={fuelOptions}
+              value={typeToFuel[fuelType]}
+              onChange={handleFuelChange}
+            />
+            <div className="filter-grid__item">
+              <label className="filter-grid__label">{t.engineLabel}</label>
+              <input
+                type="number"
+                className="filter-grid__input"
+                placeholder={t.enginePlaceholder}
+                step="0.1"
+                value={fuelType === "EV" ? "0" : engineVolume}
+                disabled={fuelType === "EV"}
+                onChange={(e) => setEngineVolume(e.target.value)}
+              />
+            </div>
+          </div>
+          <button className="input-panel__submit" onClick={handleCustomsSubmit}>
+            {t.calculate}
+          </button>
+        </div>
+      ) : isManual ? (
+        <div className="input-panel__form">
+          <div className="filter-grid filter-grid--link" style={{ marginBottom: 12 }}>
+            <div className="filter-grid__item filter-grid__item--wide">
+              <label className="filter-grid__label">VIN (auto-fill via NHTSA)</label>
+              <input
+                type="text"
+                className="filter-grid__input"
+                placeholder="17-character VIN"
+                value={vinInput}
+                maxLength={17}
+                onChange={(e) => setVinInput(e.target.value.toUpperCase())}
+              />
+            </div>
+            <div className="filter-grid__item">
+              <label className="filter-grid__label">&nbsp;</label>
+              <button
+                type="button"
+                className="input-panel__submit"
+                onClick={handleVinDecode}
+                disabled={vinLoading}
+              >
+                {vinLoading ? "..." : "Decode VIN"}
+              </button>
+            </div>
+          </div>
           <div className="filter-grid">
             <SearchSelect
               label={t.makeLabel}

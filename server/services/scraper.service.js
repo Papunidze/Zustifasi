@@ -83,13 +83,18 @@ const HYBRID_KEYWORDS = [
  * Last resort: return dummy vehicle data.
  */
 async function scrapeVehicleData(url) {
-  const urlParsed = parseFromUrl(url);
+  const urlParsed = await parseFromUrl(url);
 
-  // Try HTML scrape to extract Est. Retail Value, even if URL parsing succeeded
+  // Try HTML scrape to extract Est. Retail Value, damage, and lot image,
+  // even if URL parsing already succeeded.
   let retailValue = null;
+  let primaryDamage = null;
+  let lotImageUrl = null;
   try {
     const htmlData = await scrapeFromHtml(url);
     retailValue = htmlData.retailValue || null;
+    primaryDamage = htmlData.primaryDamage || null;
+    lotImageUrl = htmlData.lotImageUrl || null;
 
     if (!urlParsed) {
       console.log("[ScraperService] Extracted from HTML scrape:", htmlData);
@@ -101,6 +106,9 @@ async function scrapeVehicleData(url) {
 
   if (urlParsed) {
     urlParsed.retailValue = retailValue;
+    urlParsed.primaryDamage = primaryDamage;
+    urlParsed.lotImageUrl = lotImageUrl;
+    if (lotImageUrl) urlParsed.imageUrl = lotImageUrl;
     console.log("[ScraperService] Extracted from URL slug:", urlParsed);
     return urlParsed;
   }
@@ -112,7 +120,7 @@ async function scrapeVehicleData(url) {
 /**
  * Parse vehicle info directly from the URL path.
  */
-function parseFromUrl(url) {
+async function parseFromUrl(url) {
   const isCopart = url.toLowerCase().includes("copart");
   const isIAAI = url.toLowerCase().includes("iaai");
 
@@ -121,7 +129,7 @@ function parseFromUrl(url) {
   return null;
 }
 
-function parseCopartUrl(url) {
+async function parseCopartUrl(url) {
   // Pattern: /lot/99885295/2013-bmw-x5-xdrive35i-nj-glassboro-east
   const lotMatch = url.match(/\/lot\/(\d+)/i);
   const slugMatch = url.match(/\/lot\/\d+\/(.+)/i);
@@ -147,12 +155,12 @@ function parseCopartUrl(url) {
   const type = detectFuelType(slug, modelParts);
   const engineVolume = estimateEngine(modelParts, make, type);
 
-  const imageUrl = buildImageUrl(formatName(make), model, year);
+  const imageUrl = await buildImageUrl(formatName(make), model, year);
 
   return { make: formatName(make), model, year, engineVolume, type, location, imageUrl };
 }
 
-function parseIAAIUrl(url) {
+async function parseIAAIUrl(url) {
   // Pattern: /VehicleDetail/LOTNUM~YEAR_MAKE_MODEL
   const tildeMatch = url.match(/VehicleDetail\/\d+~(.+)/i);
   // Pattern: /Vehicle?itemID=...&ESSION=... (no slug info)
@@ -182,24 +190,95 @@ function parseIAAIUrl(url) {
     engineVolume,
     type,
     location: DUMMY_VEHICLE.location,
-    imageUrl: buildImageUrl(formattedMake, model, year),
+    imageUrl: await buildImageUrl(formattedMake, model, year),
   };
 }
 
 /**
- * Build a car image URL using IMAGIN.studio CDN.
- * Returns a real render of the specific make/model/year.
- * Free tier with watermark — no API key needed.
+ * In-memory cache for CarImagery lookups (key → url).
  */
-function buildImageUrl(make, model, year) {
-  const cleanMake = (make || "").toLowerCase().replace(/\s+/g, "-");
-  const cleanModel = (model || "")
-    .toLowerCase()
-    .replace(/[-\s]+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
-  const modelYear = year || new Date().getFullYear();
+const imageCache = new Map();
 
-  return `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(cleanMake)}&modelFamily=${encodeURIComponent(cleanModel)}&modelYear=${modelYear}&zoomType=fullscreen&angle=23`;
+/**
+ * Fetch a clean (no-watermark) car photo from CarImagery.com.
+ * Free, no API key. Returns null on failure so caller can fall back.
+ *
+ *   GET https://www.carimagery.com/api.asmx/GetImageUrl?searchTerm=2020+BMW+X5
+ *   → <string>https://...jpg</string>
+ */
+async function buildImageUrl(make, model, year) {
+  const cleanMake = (make || "").trim();
+  const cleanModel = (model || "").trim();
+  if (!cleanMake) return null;
+
+  const cacheKey = `${cleanMake}|${cleanModel}`;
+  if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
+
+  // 1. Wikipedia (most accurate). Try title variants from most specific
+  //    to least, stripping trim words ("Gran Coupe", "xDrive40i", etc.)
+  //    so a model like "430i Gran Coupe" can fall back to "BMW 4 Series".
+  const modelWords = cleanModel.split(/\s+/).filter(Boolean);
+  const titles = new Set();
+  for (let i = modelWords.length; i >= 1; i--) {
+    titles.add(`${cleanMake}_${modelWords.slice(0, i).join("_")}`);
+  }
+  // Common Wikipedia article patterns for car families
+  if (/^\d+/.test(modelWords[0] || "")) {
+    const seriesNum = (modelWords[0].match(/^(\d)/) || [])[1];
+    if (seriesNum) titles.add(`${cleanMake}_${seriesNum}_Series`);
+  }
+  for (const title of titles) {
+    const url = await fetchWikipediaImage(title);
+    if (url) {
+      imageCache.set(cacheKey, url);
+      return url;
+    }
+  }
+
+  // 2. CarImagery fallback.
+  try {
+    const searchTerm = `${year || ""} ${cleanMake} ${cleanModel}`.trim();
+    const res = await axios.get(
+      "https://www.carimagery.com/api.asmx/GetImageUrl",
+      { params: { searchTerm }, timeout: 5000, headers: { Accept: "text/xml" } }
+    );
+    const match = String(res.data).match(/<string[^>]*>([^<]+)<\/string>/i);
+    const url = match ? match[1].trim() : null;
+    if (url && /^https?:\/\//.test(url)) {
+      imageCache.set(cacheKey, url);
+      return url;
+    }
+  } catch (error) {
+    console.warn(`[ScraperService] CarImagery failed (${error.message})`);
+  }
+
+  return null;
+}
+
+async function fetchWikipediaImage(title) {
+  try {
+    const res = await axios.get(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+      {
+        timeout: 5000,
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "ZustiFasi/1.0 (https://zustifasi.ge; contact@zustifasi.ge)",
+        },
+      }
+    );
+    const url =
+      res.data?.originalimage?.source ||
+      res.data?.thumbnail?.source ||
+      null;
+    if (!url || !/^https?:\/\//.test(url)) return null;
+    // Reject generic logos / brand badges that Wikipedia returns
+    // when the article is the brand page rather than a model page.
+    if (/logo|badge|emblem|wordmark/i.test(url)) return null;
+    return url;
+  } catch {
+    return null;
+  }
 }
 
 function extractYearFromParts(parts) {
@@ -356,6 +435,8 @@ async function scrapeFromHtml(url) {
 
   // Extract Est. Retail Value (ERV) from lot page
   const retailValue = extractRetailValue($, isCopart);
+  const primaryDamage = extractPrimaryDamage($, isCopart);
+  const lotImageUrl = extractLotImage($);
 
   const parsed = parseTitleToMakeModel(title);
   const year = extractYearFromText(title);
@@ -372,9 +453,67 @@ async function scrapeFromHtml(url) {
     engineVolume,
     type,
     location,
-    imageUrl: buildImageUrl(finalMake, finalModel, year),
+    imageUrl: lotImageUrl || (await buildImageUrl(finalMake, finalModel, year)),
     retailValue,
+    primaryDamage,
+    lotImageUrl,
   };
+}
+
+/**
+ * Extract the primary damage label from a lot page.
+ * Examples: "Front End", "Rear End", "Flood", "All Over", "Normal Wear".
+ */
+function extractPrimaryDamage($, isCopart) {
+  try {
+    const text = isCopart
+      ? (
+          $("[data-uname='lotdetailDamagedescription']").text().trim() ||
+          $("label:contains('Primary Damage')").next().text().trim() ||
+          $("span:contains('Primary Damage')").parent().find("span").last().text().trim()
+        )
+      : (
+          $(".pd-damage, .damage-type").text().trim() ||
+          $("td:contains('Primary Damage')").next().text().trim()
+        );
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract the main lot image URL.
+ * Falls back to og:image meta tag, then to the first JSON-LD image.
+ */
+function extractLotImage($) {
+  try {
+    const og = $("meta[property='og:image']").attr("content");
+    if (og && /^https?:\/\//.test(og)) return og;
+
+    const twitter = $("meta[name='twitter:image']").attr("content");
+    if (twitter && /^https?:\/\//.test(twitter)) return twitter;
+
+    let jsonLdImage = null;
+    $("script[type='application/ld+json']").each((_, el) => {
+      if (jsonLdImage) return;
+      try {
+        const data = JSON.parse($(el).contents().text());
+        const candidates = Array.isArray(data) ? data : [data];
+        for (const c of candidates) {
+          if (c && c.image) {
+            jsonLdImage = Array.isArray(c.image) ? c.image[0] : c.image;
+            return;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    });
+    return jsonLdImage || null;
+  } catch {
+    return null;
+  }
 }
 
 /**

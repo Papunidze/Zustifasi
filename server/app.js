@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const calculateRoutes = require("./routes/calculate.routes");
+const vinRoutes = require("./routes/vin.routes");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -15,6 +16,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/v1/calculate", calculateRoutes);
+app.use("/api/v1/vin", vinRoutes);
 
 app.use((err, req, res, next) => {
   void req;

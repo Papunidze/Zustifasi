@@ -39,7 +39,7 @@ async function calculateByLink(req, res) {
         });
       }
       vehicle.location = DUMMY_VEHICLE.location;
-      vehicle.imageUrl = null;
+      vehicle.imageUrl = await getCarImageUrl(vehicle.make, vehicle.model, vehicle.year);
     } else {
       // ── URL parse path ──
       const isValidAuctionUrl =
@@ -67,9 +67,9 @@ async function calculateByLink(req, res) {
 
     if (!finalBudget || typeof finalBudget !== "number" || finalBudget <= 0) {
       if (vehicle.retailValue && vehicle.retailValue > 0) {
-        finalBudget = estimateFromRetailValue(vehicle.retailValue);
+        finalBudget = estimateFromRetailValue(vehicle.retailValue, vehicle.primaryDamage);
         console.log(
-          `[CalculateController] Estimated bid from ERV ($${vehicle.retailValue}): $${finalBudget}`
+          `[CalculateController] Estimated bid from ERV ($${vehicle.retailValue}, damage=${vehicle.primaryDamage || "n/a"}): $${finalBudget}`
         );
       } else {
         finalBudget = await estimateFromManualEntry(
@@ -157,7 +157,7 @@ async function calculateManual(req, res) {
       engineVolume,
       type,
       location: DUMMY_VEHICLE.location,
-      imageUrl: getCarImageUrl(make, model, year),
+      imageUrl: await getCarImageUrl(make, model, year),
     };
 
     const result = await buildCalculation(vehicle, finalBudget, isEstimatedBid);
@@ -177,17 +177,27 @@ async function calculateManual(req, res) {
 async function buildCalculation(vehicle, budgetUSD, isEstimatedBid) {
   const usdToGel = await getUsdToGel();
 
-  const auctionFeeUSD = calculateAuctionFee(budgetUSD);
-  const { inlandUSD, oceanUSD } = calculateShipping(vehicle.location);
-  const customsFeeGEL = calculateCustomsFee(
+  const auction = calculateAuctionFee(budgetUSD);
+  const { inlandUSD, oceanUSD, geInlandUSD, insuranceUSD } = calculateShipping(
+    vehicle.location,
+    budgetUSD
+  );
+  const customs = calculateCustomsFee(
     vehicle.engineVolume,
     vehicle.year,
     vehicle.type
   );
 
-  const totalUSD = budgetUSD + auctionFeeUSD + inlandUSD + oceanUSD;
+  const totalUSD =
+    budgetUSD +
+    auction.total +
+    inlandUSD +
+    oceanUSD +
+    geInlandUSD +
+    insuranceUSD;
   const totalUSDinGEL = Math.round(totalUSD * usdToGel * 100) / 100;
-  const grandTotalGEL = Math.round((totalUSDinGEL + customsFeeGEL) * 100) / 100;
+  const grandTotalGEL =
+    Math.round((totalUSDinGEL + customs.totalGEL) * 100) / 100;
 
   return {
     carDetails: {
@@ -196,13 +206,21 @@ async function buildCalculation(vehicle, budgetUSD, isEstimatedBid) {
       year: vehicle.year,
       type: vehicle.type,
       imageUrl: vehicle.imageUrl,
+      lotImageUrl: vehicle.lotImageUrl || null,
+      primaryDamage: vehicle.primaryDamage || null,
     },
     breakdown: {
       bidAmountUSD: budgetUSD,
-      auctionFeeUSD,
+      auctionFeeUSD: auction.total,
+      auctionFees: auction,
       shippingInlandUSD: inlandUSD,
       shippingOceanUSD: oceanUSD,
-      customsFeeGEL,
+      shippingGeInlandUSD: geInlandUSD,
+      insuranceUSD,
+      customsFeeGEL: customs.totalGEL,
+      exciseGEL: customs.exciseGEL,
+      declarationGEL: customs.declarationGEL,
+      registrationGEL: customs.registrationGEL,
       isEstimatedBid,
     },
     totals: {
@@ -213,4 +231,85 @@ async function buildCalculation(vehicle, budgetUSD, isEstimatedBid) {
   };
 }
 
-module.exports = { calculateByLink, calculateManual };
+/**
+ * POST /api/v1/calculate/customs
+ * Customs-only quote. Accepts { year, engineVolume, type }.
+ * Returns the same shape as the other endpoints with non-customs
+ * sections zeroed and mode: "customs".
+ */
+async function calculateCustomsOnly(req, res) {
+  try {
+    const { year, engineVolume, type } = req.body;
+
+    if (!year || typeof year !== "number" || year < 1990 || year > new Date().getFullYear() + 1) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid 'year'. Must be between 1990 and current year.",
+      });
+    }
+    if (typeof engineVolume !== "number" || engineVolume < 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid 'engineVolume'. Must be a non-negative number in liters (0 for EV).",
+      });
+    }
+    const validTypes = ["Gas", "Hybrid", "EV"];
+    if (!type || !validTypes.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid 'type'. Must be one of: ${validTypes.join(", ")}`,
+      });
+    }
+    if (type !== "EV" && engineVolume <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Non-EV vehicles must have an engineVolume greater than 0.",
+      });
+    }
+
+    const usdToGel = await getUsdToGel();
+    const customs = calculateCustomsFee(engineVolume, year, type);
+
+    return res.json({
+      success: true,
+      data: {
+        mode: "customs",
+        carDetails: {
+          make: "",
+          model: "",
+          year,
+          type,
+          imageUrl: null,
+          lotImageUrl: null,
+          primaryDamage: null,
+        },
+        breakdown: {
+          bidAmountUSD: 0,
+          auctionFeeUSD: 0,
+          shippingInlandUSD: 0,
+          shippingOceanUSD: 0,
+          shippingGeInlandUSD: 0,
+          insuranceUSD: 0,
+          customsFeeGEL: customs.totalGEL,
+          exciseGEL: customs.exciseGEL,
+          declarationGEL: customs.declarationGEL,
+          registrationGEL: customs.registrationGEL,
+          isEstimatedBid: false,
+        },
+        totals: {
+          totalUSD: 0,
+          grandTotalGEL: customs.totalGEL,
+          usdToGel,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("[CalculateController] /customs error:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error. Please try again.",
+    });
+  }
+}
+
+module.exports = { calculateByLink, calculateManual, calculateCustomsOnly };

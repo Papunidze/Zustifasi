@@ -28,8 +28,35 @@ const VALUATION_API_URL =
  * Clean titles go higher, around 65% of ERV.
  * We use 50% as a middle ground since we can't always detect title type.
  */
-function estimateFromRetailValue(retailValue) {
-  return Math.round(retailValue * 0.50);
+function estimateFromRetailValue(retailValue, primaryDamage = null) {
+  const base = retailValue * 0.50;
+  const adjusted = base * getDamageMultiplier(primaryDamage);
+  return Math.max(Math.round(adjusted), 500);
+}
+
+/**
+ * Map a Copart/IAAI primary-damage label to a value multiplier.
+ * Conservative numbers based on auction sale-history medians.
+ *
+ *   Normal Wear / None        → 1.00
+ *   Front End / Rear End      → 0.85
+ *   Side / Hail / Vandalism   → 0.80
+ *   All Over / Undercarriage  → 0.70
+ *   Roll Over / Major Dent    → 0.60
+ *   Mechanical / Frame Damage → 0.55
+ *   Flood / Burn / Stripped   → 0.40
+ */
+function getDamageMultiplier(damage) {
+  if (!damage) return 1.0;
+  const d = damage.toLowerCase();
+
+  if (d.includes("flood") || d.includes("burn") || d.includes("strip")) return 0.40;
+  if (d.includes("roll") || d.includes("frame") || d.includes("mechanic")) return 0.55;
+  if (d.includes("all over") || d.includes("under")) return 0.70;
+  if (d.includes("side") || d.includes("hail") || d.includes("vandal")) return 0.80;
+  if (d.includes("front") || d.includes("rear")) return 0.85;
+  if (d.includes("normal") || d.includes("minor") || d.includes("none")) return 1.0;
+  return 0.85;
 }
 
 /**
@@ -357,4 +384,5 @@ function estimateByDepreciation(make, model, year) {
 module.exports = {
   estimateFromRetailValue,
   estimateFromManualEntry,
+  getDamageMultiplier,
 };

@@ -12,14 +12,31 @@ const DUMMY_VEHICLE = {
   imageUrl: null,
 };
 
+// Copart 2025 non-member fee approximation (percentage-based tiers).
+// Calibrated against the published high-volume buyer fee schedule.
 const AUCTION_FEE_TIERS = [
-  { max: 1000, fee: 200 },
-  { max: 3000, fee: 400 },
-  { max: 5000, fee: 600 },
+  { max: 100,   fee: 25 },
+  { max: 500,   fee: 80 },
+  { max: 1000,  fee: 175 },
 ];
+const AUCTION_FEE_RATES = [
+  { max: 2000,  rate: 0.145 },
+  { max: 4000,  rate: 0.120 },
+  { max: 6000,  rate: 0.105 },
+  { max: 8000,  rate: 0.095 },
+  { max: 15000, rate: 0.085 },
+];
+const AUCTION_FEE_HIGH_RATE = 0.075;
 
-const AUCTION_FEE_HIGH_RATE = 0.15;
 const INTERNET_BID_FEE = 79;
+const GATE_FEE = 95;
+const ENVIRONMENTAL_FEE = 15;
+const TITLE_FEE = 20;
+const BROKER_FEE = 250;
+
+const GEORGIA_INLAND_USD = 250;       // Poti → Tbilisi
+const INSURANCE_RATE = 0.02;          // 2% of bid value
+const GE_REGISTRATION_FEE_GEL = 200;  // registration + tech inspection
 
 const SHIPPING_RATES = {
   Texas:      { inland: 250, ocean: 1100 },
@@ -45,8 +62,16 @@ module.exports = {
   CURRENT_YEAR,
   DUMMY_VEHICLE,
   AUCTION_FEE_TIERS,
+  AUCTION_FEE_RATES,
   AUCTION_FEE_HIGH_RATE,
   INTERNET_BID_FEE,
+  GATE_FEE,
+  ENVIRONMENTAL_FEE,
+  TITLE_FEE,
+  BROKER_FEE,
+  GEORGIA_INLAND_USD,
+  INSURANCE_RATE,
+  GE_REGISTRATION_FEE_GEL,
   SHIPPING_RATES,
   SHIPPING_DEFAULT,
   CUSTOMS_AGE_COEFFICIENTS,

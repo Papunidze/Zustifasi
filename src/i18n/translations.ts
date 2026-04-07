@@ -7,6 +7,7 @@ export interface Translations {
   // Tabs
   tabLink: string;
   tabFilters: string;
+  tabCustoms: string;
 
   // Link form
   linkLabel: string;
@@ -71,6 +72,7 @@ const ge: Translations = {
   logoText: "Zustad.ge",
   tabLink: "ბმული / VIN",
   tabFilters: "ფილტრები",
+  tabCustoms: "მხოლოდ განბაჟება",
   linkLabel: "Copart / IAAI ლინკი ან VIN",
   linkPlaceholder: "https://copart.com/lot/... ან VIN კოდი",
   priceLabel: "სავარაუდო ფასი ($)",
@@ -121,6 +123,7 @@ const en: Translations = {
   logoText: "Zustad.ge",
   tabLink: "Link / VIN",
   tabFilters: "Filters",
+  tabCustoms: "Customs only",
   linkLabel: "Copart / IAAI Link or VIN",
   linkPlaceholder: "https://copart.com/lot/... or VIN code",
   priceLabel: "Estimated Price ($)",
@@ -171,6 +174,7 @@ const ru: Translations = {
   logoText: "Zustad.ge",
   tabLink: "Ссылка / VIN",
   tabFilters: "Фильтры",
+  tabCustoms: "Только растаможка",
   linkLabel: "Ссылка Copart / IAAI или VIN",
   linkPlaceholder: "https://copart.com/lot/... или VIN код",
   priceLabel: "Примерная цена ($)",

@@ -58,16 +58,43 @@ export default function ResultsPanel({ result, isLoading, error }: ResultsPanelP
 
   const { carDetails, breakdown, totals } = result;
   const rate = totals.usdToGel || FALLBACK_RATE;
+  const isCustomsOnly = result.mode === "customs";
+
+  const auctionSubtotalUSD = breakdown.bidAmountUSD + breakdown.auctionFeeUSD;
+  const shippingSubtotalUSD =
+    breakdown.shippingInlandUSD +
+    breakdown.shippingOceanUSD +
+    (breakdown.shippingGeInlandUSD ?? 0) +
+    (breakdown.insuranceUSD ?? 0);
+  const customsSubtotalGEL = breakdown.customsFeeGEL;
 
   return (
     <div className="results-area">
       {/* ── Center Column: Car + Total ── */}
       <div className="results-area__center-col">
+        {(carDetails.lotImageUrl || carDetails.imageUrl) && (
+          <img
+            src={carDetails.lotImageUrl || carDetails.imageUrl || ""}
+            alt={`${carDetails.make} ${carDetails.model}`}
+            className="car-card__image"
+            style={{ maxWidth: "100%", borderRadius: 8, marginBottom: 12 }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        )}
         <div className="car-card__info">
           <h3 className="car-card__title">{carDetails.make} {carDetails.model}</h3>
           <div className="car-card__meta">
             <span className="car-card__year">{carDetails.year}</span>
             <span className="car-card__type-badge">{carDetails.type}</span>
+            {carDetails.primaryDamage && (
+              <span
+                className="car-card__type-badge"
+                style={{ background: "#fde2e2", color: "#b42318" }}
+                title="Primary damage detected from auction listing"
+              >
+                {carDetails.primaryDamage}
+              </span>
+            )}
           </div>
         </div>
 
@@ -95,6 +122,7 @@ export default function ResultsPanel({ result, isLoading, error }: ResultsPanelP
       {/* ── Right Column: Grouped Breakdown ── */}
       <div className="results-area__breakdown-col">
         {/* Auction Costs */}
+        {!isCustomsOnly && (
         <div className="cost-group">
           <div className="cost-group__header">
             <svg className="cost-group__icon cost-group__icon--blue" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -115,17 +143,70 @@ export default function ResultsPanel({ result, isLoading, error }: ResultsPanelP
                 <span className="cost-row__gel">{formatNum(Math.round(breakdown.bidAmountUSD * rate))} GEL</span>
               </div>
             </div>
-            <div className="cost-row">
-              <span className="cost-row__label">{t.buyerFeeLabel}</span>
-              <div className="cost-row__values">
-                <span className="cost-row__usd">${formatNum(breakdown.auctionFeeUSD)}</span>
-                <span className="cost-row__gel">{formatNum(Math.round(breakdown.auctionFeeUSD * rate))} GEL</span>
+            {breakdown.auctionFees ? (
+              <>
+                <div className="cost-row">
+                  <span className="cost-row__label">{t.buyerFeeLabel}</span>
+                  <div className="cost-row__values">
+                    <span className="cost-row__usd">${formatNum(breakdown.auctionFees.buyerFee)}</span>
+                    <span className="cost-row__gel">{formatNum(Math.round(breakdown.auctionFees.buyerFee * rate))} GEL</span>
+                  </div>
+                </div>
+                <div className="cost-row">
+                  <span className="cost-row__label">Internet bid fee</span>
+                  <div className="cost-row__values">
+                    <span className="cost-row__usd">${formatNum(breakdown.auctionFees.internetBidFee)}</span>
+                  </div>
+                </div>
+                <div className="cost-row">
+                  <span className="cost-row__label">Gate fee</span>
+                  <div className="cost-row__values">
+                    <span className="cost-row__usd">${formatNum(breakdown.auctionFees.gateFee)}</span>
+                  </div>
+                </div>
+                <div className="cost-row">
+                  <span className="cost-row__label">Environmental fee</span>
+                  <div className="cost-row__values">
+                    <span className="cost-row__usd">${formatNum(breakdown.auctionFees.environmentalFee)}</span>
+                  </div>
+                </div>
+                <div className="cost-row">
+                  <span className="cost-row__label">Title fee</span>
+                  <div className="cost-row__values">
+                    <span className="cost-row__usd">${formatNum(breakdown.auctionFees.titleFee)}</span>
+                  </div>
+                </div>
+                {breakdown.auctionFees.brokerFee > 0 && (
+                  <div className="cost-row">
+                    <span className="cost-row__label">Broker fee</span>
+                    <div className="cost-row__values">
+                      <span className="cost-row__usd">${formatNum(breakdown.auctionFees.brokerFee)}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="cost-row cost-row--subtotal">
+                  <span className="cost-row__label">Subtotal</span>
+                  <div className="cost-row__values">
+                    <span className="cost-row__usd">${formatNum(auctionSubtotalUSD)}</span>
+                    <span className="cost-row__gel">{formatNum(Math.round(auctionSubtotalUSD * rate))} GEL</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="cost-row">
+                <span className="cost-row__label">{t.buyerFeeLabel}</span>
+                <div className="cost-row__values">
+                  <span className="cost-row__usd">${formatNum(breakdown.auctionFeeUSD)}</span>
+                  <span className="cost-row__gel">{formatNum(Math.round(breakdown.auctionFeeUSD * rate))} GEL</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
+        )}
 
         {/* Shipping Costs */}
+        {!isCustomsOnly && (
         <div className="cost-group">
           <div className="cost-group__header">
             <svg className="cost-group__icon cost-group__icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -148,8 +229,34 @@ export default function ResultsPanel({ result, isLoading, error }: ResultsPanelP
                 <span className="cost-row__gel">{formatNum(Math.round(breakdown.shippingOceanUSD * rate))} GEL</span>
               </div>
             </div>
+            {typeof breakdown.shippingGeInlandUSD === "number" && (
+              <div className="cost-row">
+                <span className="cost-row__label">Poti → Tbilisi</span>
+                <div className="cost-row__values">
+                  <span className="cost-row__usd">${formatNum(breakdown.shippingGeInlandUSD)}</span>
+                  <span className="cost-row__gel">{formatNum(Math.round(breakdown.shippingGeInlandUSD * rate))} GEL</span>
+                </div>
+              </div>
+            )}
+            {typeof breakdown.insuranceUSD === "number" && breakdown.insuranceUSD > 0 && (
+              <div className="cost-row">
+                <span className="cost-row__label">Cargo insurance (2%)</span>
+                <div className="cost-row__values">
+                  <span className="cost-row__usd">${formatNum(breakdown.insuranceUSD)}</span>
+                  <span className="cost-row__gel">{formatNum(Math.round(breakdown.insuranceUSD * rate))} GEL</span>
+                </div>
+              </div>
+            )}
+            <div className="cost-row cost-row--subtotal">
+              <span className="cost-row__label">Subtotal</span>
+              <div className="cost-row__values">
+                <span className="cost-row__usd">${formatNum(shippingSubtotalUSD)}</span>
+                <span className="cost-row__gel">{formatNum(Math.round(shippingSubtotalUSD * rate))} GEL</span>
+              </div>
+            </div>
           </div>
         </div>
+        )}
 
         {/* Customs Costs */}
         <div className="cost-group">
@@ -160,10 +267,42 @@ export default function ResultsPanel({ result, isLoading, error }: ResultsPanelP
             <span className="cost-group__title">{t.customsCosts}</span>
           </div>
           <div className="cost-group__rows">
-            <div className="cost-row">
-              <span className="cost-row__label">{t.exciseLabel}</span>
+            {typeof breakdown.exciseGEL === "number" && (
+              <div className="cost-row">
+                <span className="cost-row__label">{t.exciseLabel}</span>
+                <div className="cost-row__values">
+                  <span className="cost-row__gel-main">{formatNum(breakdown.exciseGEL)} GEL</span>
+                </div>
+              </div>
+            )}
+            {typeof breakdown.declarationGEL === "number" && (
+              <div className="cost-row">
+                <span className="cost-row__label">Declaration fee</span>
+                <div className="cost-row__values">
+                  <span className="cost-row__gel-main">{formatNum(breakdown.declarationGEL)} GEL</span>
+                </div>
+              </div>
+            )}
+            {typeof breakdown.registrationGEL === "number" && (
+              <div className="cost-row">
+                <span className="cost-row__label">Registration + tech inspection</span>
+                <div className="cost-row__values">
+                  <span className="cost-row__gel-main">{formatNum(breakdown.registrationGEL)} GEL</span>
+                </div>
+              </div>
+            )}
+            {typeof breakdown.exciseGEL !== "number" && (
+              <div className="cost-row">
+                <span className="cost-row__label">{t.exciseLabel}</span>
+                <div className="cost-row__values">
+                  <span className="cost-row__gel-main">{formatNum(breakdown.customsFeeGEL)} GEL</span>
+                </div>
+              </div>
+            )}
+            <div className="cost-row cost-row--subtotal">
+              <span className="cost-row__label">Subtotal</span>
               <div className="cost-row__values">
-                <span className="cost-row__gel-main">{formatNum(breakdown.customsFeeGEL)} GEL</span>
+                <span className="cost-row__gel-main">{formatNum(customsSubtotalGEL)} GEL</span>
               </div>
             </div>
             {carDetails.type === "Hybrid" && (
