@@ -15,8 +15,8 @@ export default function Header(): ReactNode {
   return (
     <header className="header">
       <div className="header__logo">
-        <img className="header__logo-icon" src={logoSvg} alt="Zustad.ge" />
-        <span className="header__logo-text">Zustad.ge</span>
+        <img className="header__logo-icon" src={logoSvg} alt="ZustiFasi.ge" />
+        <span className="header__logo-text">ZustiFasi</span>
       </div>
       <div className="header__lang">
         {LANGS.map((l) => (
